@@ -1,0 +1,76 @@
+{
+  "$id": "peticao_inicial_cobranca.schema.json",
+  "type": "object",
+  "required": [
+    "autor",
+    "reu",
+    "valor_causa",
+    "fatos",
+    "pedidos",
+    "foro"
+  ],
+  "properties": {
+    "autor": {
+      "type": "object",
+      "required": [
+        "nome",
+        "cpf"
+      ],
+      "properties": {
+        "nome": {
+          "type": "string"
+        },
+        "cpf": {
+          "type": "string"
+        },
+        "endereco": {
+          "type": "string"
+        },
+        "estado_civil": {
+          "type": "string"
+        }
+      }
+    },
+    "reu": {
+      "type": "object",
+      "required": [
+        "nome"
+      ],
+      "properties": {
+        "nome": {
+          "type": "string"
+        },
+        "cnpj": {
+          "type": "string"
+        },
+        "endereco": {
+          "type": "string"
+        }
+      }
+    },
+    "foro": {
+      "type": "string"
+    },
+    "fatos": {
+      "type": "string"
+    },
+    "pedidos": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "valor_causa": {
+      "type": "number"
+    },
+    "provas": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "fundamentacao_extra": {
+      "type": "string"
+    }
+  }
+}
