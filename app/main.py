@@ -46,7 +46,13 @@ def chat(req: ChatRequest):
     question = preprocess_question(req.question)
 
     # 2️⃣ Recuperar passagens (embedding + Qdrant)
-    raw = retriever.search(question, k=max(8, req.k))
+    try:
+        raw = retriever.search(question, k=max(8, req.k))
+    except ConnectionError as ce:
+        return ChatResponse(
+            answer=f"Erro: Não foi possível acessar o Qdrant. {str(ce)}",
+            citations=[]
+        )
 
     # 3️⃣ Rerank local (melhora precisão)
     ranked = rerank(question, raw, top_n=5)
@@ -62,7 +68,7 @@ def chat(req: ChatRequest):
     citations = [fmt_source(p) for p in ranked]
 
     context = "\n\n".join(
-        f"CONTEXTO [{i+1}]: {fmt_source(p)}\n\"{(p.get('texto') or '').strip()}\""
+        f"CONTEXTO [{i+1}]: {fmt_source(p)}\n\"{(p.get('texto') or '')}\""
         for i, p in enumerate(ranked)
     )
 
@@ -71,7 +77,7 @@ def chat(req: ChatRequest):
     if use_llm_effective:
         try:
             prompt = build_prompt(context, question)
-            answer = generate_with_ollama(prompt, question, max_tokens=400)
+            answer = generate_with_ollama(prompt, question)
         except Exception as e:
             print(f"[ERRO OLLAMA] {e}")
             answer = (
