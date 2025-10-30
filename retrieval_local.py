@@ -79,11 +79,17 @@ class RetrieverLocal:
             return []
 
         qvec = self.embed(query)
-        hits = self.client.search(
-            collection_name=self.collection,
-            query_vector=qvec,
-            limit=int(k),
-        )
+        try:
+            hits = self.client.search(
+                collection_name=self.collection,
+                query_vector=qvec,
+                limit=int(k),
+            )
+        except Exception as e:
+            from qdrant_client.http.exceptions import ResponseHandlingException
+            if isinstance(e, ResponseHandlingException) or "ConnectError" in str(e):
+                raise ConnectionError("Não foi possível conectar ao Qdrant. Verifique se o serviço está rodando e a configuração de host/porta.") from e
+            raise
 
         results: List[Dict[str, Any]] = []
         for h in hits:
