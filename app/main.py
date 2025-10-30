@@ -1,22 +1,32 @@
 from fastapi import FastAPI, Body, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from typing import List, Optional, Dict, Any
 from app.rag import RAGEngine
-from app.generators.doc_gen import generate_peticao_inicial_cobranca
+from app.documents.generator import generate_peticao_inicial_cobranca
 import os
 from retrieval_local import RetrieverLocal
 from scripts.rerank_local import rerank
 from pydantic import BaseModel
 from typing import List
+from app.prompts.legal_prompting import preprocess_question, build_prompt
+from llm_ollama import generate_with_ollama
 
 # (opcional) só se for usar LLM local:
 USE_OLLAMA = os.getenv("USE_OLLAMA", "false").lower() in ("1","true","yes")
-if USE_OLLAMA:
-    from llm_ollama import generate_with_ollama
     
 retriever = RetrieverLocal()
 
 app = FastAPI(title="Legal Assistant MVP")
+
+# Configurar CORS
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Permite todas as origens, ajuste conforme necessário
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"]
+)
 
 rag = RAGEngine()
 
@@ -32,11 +42,14 @@ class ChatResponse(BaseModel):
 
 @app.post("/chat", response_model=ChatResponse)
 def chat(req: ChatRequest):
-    # 1) Recupera passagens (embeddings locais + Qdrant)
-    raw = retriever.search(req.question, k=max(8, req.k))
+    # 1️⃣ Preprocessar a pergunta
+    question = preprocess_question(req.question)
 
-    # 2) Rerank local (cross-encoder) para precisão
-    ranked = rerank(req.question, raw, top_n=5)
+    # 2️⃣ Recuperar passagens (embedding + Qdrant)
+    raw = retriever.search(question, k=max(8, req.k))
+
+    # 3️⃣ Rerank local (melhora precisão)
+    ranked = rerank(question, raw, top_n=5)
 
     if not ranked:
         return ChatResponse(
@@ -44,39 +57,39 @@ def chat(req: ChatRequest):
             citations=[]
         )
 
-    # 3) Monta contexto e citações
+    # 4️⃣ Montar contexto formatado
     def fmt_source(p): return f"Lei {p.get('lei')} art. {p.get('artigo')}"
     citations = [fmt_source(p) for p in ranked]
 
-    contexto = "\n\n".join(
-        f"[{i+1}] {fmt_source(p)}\n{(p.get('texto') or '').strip()}"
+    context = "\n\n".join(
+        f"CONTEXTO [{i+1}]: {fmt_source(p)}\n\"{(p.get('texto') or '').strip()}\""
         for i, p in enumerate(ranked)
     )
 
-    # 4) Resposta
-    answer: str
+    # 5️⃣ Resposta (extrativo ou LLM)
     use_llm_effective = USE_OLLAMA or req.use_llm
     if use_llm_effective:
         try:
-            answer = generate_with_ollama(contexto, req.question, max_tokens=400)
-            if not answer.strip():
-                # Fallback extrativo
-                raise RuntimeError("Resposta vazia do LLM")
-        except Exception:
+            prompt = build_prompt(context, question)
+            answer = generate_with_ollama(prompt, question, max_tokens=400)
+        except Exception as e:
+            print(f"[ERRO OLLAMA] {e}")
             answer = (
                 "Com base nas fontes recuperadas (após rerank):\n\n"
-                f"{contexto}\n\n"
+                f"{context}\n\n"
                 "Observação: informação educacional; verifique atualizações legais."
             )
     else:
-        # Modo extrativo (sem LLM) — ótimo para TCC e para máquinas fracas
+        print("LLM desativado, retornando resposta extrativa.")
+        # modo extrativo (sem LLM)
         answer = (
             "Com base nas fontes recuperadas (após rerank):\n\n"
-            f"{contexto}\n\n"
+            f"{context}\n\n"
             "Observação: informação educacional; verifique atualizações legais."
         )
 
     return ChatResponse(answer=answer, citations=citations)
+
 
 # ===== Documentos =====
 

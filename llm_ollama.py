@@ -6,7 +6,7 @@ OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3.1:8b")
 TIMEOUT = int(os.getenv("OLLAMA_TIMEOUT_SEC", "120"))
 
 SYSTEM = (
-    "Você é um assistente jurídico brasileiro. Responda APENAS com base no CONTEXTO fornecido. "
+    "Você é um assistente jurídico brasileiro. Responda SEMPRE em português do Brasil, APENAS com base no CONTEXTO fornecido. "
     "Se faltar base, diga que não encontrou. Sempre cite a lei e o artigo, quando possível."
 )
 
