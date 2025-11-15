@@ -22,23 +22,43 @@ class ChatResponse(BaseModel):
     conversation_id: str
     messages: List[ChatMessage]
 
+class Conversation(BaseModel):
+    id: int
+    user_id: int
+    cid: str
+    messages: Optional[List[ChatMessage]] = []
+    created_at: str
+    updated_at: str
 
-API_URL = "http://localhost:8080/api/"
+
+API_URL = "http://localhost:8080/api"
 
 class ConversationManagerAPI:
     """Gerencia histórico de conversas via API Go/Postgres."""
     def __init__(self):
         pass
+    
+    def get_all_conversations(self) -> List[Conversation]:
+        resp = requests.get(f"{API_URL}/conversations")
+        resp.raise_for_status()
+        data = resp.json()
+        return [Conversation(**conv) for conv in data]
 
     def get(self, cid: str) -> List[ChatMessage]:
-        resp = requests.get(f"{API_URL}/{cid}")
+        resp = requests.get(f"{API_URL}/conversations/{cid}")
+        resp.raise_for_status()
+        data = resp.json()
+        return [ChatMessage(**msg) for msg in data]
+    
+    def get_messages(self, cid: str) -> List[ChatMessage]:
+        resp = requests.get(f"{API_URL}/conversations/{cid}/messages")
         resp.raise_for_status()
         data = resp.json()
         return [ChatMessage(**msg) for msg in data]
 
     def append(self, cid: str, msg: ChatMessage):
-        payload = {"cid": cid, "message": msg.model_dump()}
-        resp = requests.post(f"{API_URL}/{cid}", json=payload)
+        payload = {"cid": cid, "content": msg.content, "user_id": 1}
+        resp = requests.post(f"{API_URL}/conversations/{cid}/messages", json=payload)
         resp.raise_for_status()
 
     def create(self) -> str:
