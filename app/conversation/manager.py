@@ -57,7 +57,7 @@ class ConversationManagerAPI:
         return [ChatMessage(**msg) for msg in data]
 
     def append(self, cid: str, msg: ChatMessage):
-        payload = {"cid": cid, "content": msg.content, "user_id": 1}
+        payload = {"cid": cid, "content": msg.content, "user_id": 1, "role": msg.role}
         resp = requests.post(f"{API_URL}/conversations/{cid}/messages", json=payload)
         resp.raise_for_status()
 
