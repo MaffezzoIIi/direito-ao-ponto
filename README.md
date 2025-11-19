@@ -1,4 +1,4 @@
-# Legal Assistant MVP (Chat + Documentos)
+# Legal Assistant (Chat + Documentos)
 
 MVP de um assistente jurídico brasileiro com dois modos:
 
@@ -90,7 +90,39 @@ data/                    # dados legais (raw/processed)
 
 ## Observações
 
-- Este projeto é **esqueleto**: os métodos em `rag.py` estão com stubs para você ligar ao seu índice vetorial (Qdrant / pgvector / Pinecone).
+- Este projeto é **esqueleto**: os métodos em `rag.py` estão com stubs para você ligar ao seu índice vetorial (Qdrant / pgvector / Pinecone). Agora o fluxo local usa SentenceTransformers + Qdrant.
 - Para geração de documentos personalize templates em `app/documents/templates/`.
 - Ajuste variáveis de ambiente (ex: `USE_OLLAMA=true`).
 - Avalie requisitos de LGPD para armazenamento de histórico.
+
+## 📦 Stack Local (Embeddings + Rerank)
+
+Fluxo típico para adicionar uma nova lei usando somente recursos locais:
+
+```bash
+# 1. Ingestão (gera JSONL processado de artigos/chunks)
+python -m scripts.ingest --lei "11.101/2005" --input data/raw/lei_11101_2005.txt
+
+# (Opcional) baixar via URL oficial:
+python -m scripts.ingest --lei "11.101/2005" --url "https://www.planalto.gov.br/..." --output data/processed/lei_11101_2005.jsonl --raw-html-out data/raw/lei_11101_2005.html
+
+# 2. Indexação local (embeddings CPU)
+python -m scripts.index_qdrant_local --jsonl data/processed/lei_11101_2005.jsonl --collection leis --recreate
+
+# 3. Busca vetorial simples
+python -m scripts.search_qdrant_local --query "plano de recuperação judicial" --k 8
+
+# 4. Busca + rerank (melhor precisão)
+python -m scripts.search_qdrant_local --query "plano de recuperação judicial" --k 12 --n 5 --rerank
+```
+
+Variáveis úteis:
+
+```text
+EMBED_MODEL=intfloat/multilingual-e5-base   # mudar modelo de embeddings
+RERANK_MODEL=BAAI/bge-reranker-v2-m3        # mudar modelo cross-encoder
+QDRANT_COLLECTION=leis                      # nome da collection
+QDRANT_HOST=localhost QDRANT_PORT=6333      # endpoint Qdrant
+```
+
+Para ver todos os resultados antes do rerank final: `--show-all`.
