@@ -188,3 +188,5 @@ print("Gerado:", doc_path)
 - Reranqueamento dos artigos antes da geração (usar `rerank_local.py`).
 - Geração de fundamentação jurídica e jurisprudência em seções separadas.
 - Verificação automática de citações legais (regex para "Art.").
+
+[Vídeo demonstrativo](https://youtu.be/FMrRUNGxe1Y)
