@@ -2,7 +2,6 @@ from fastapi import FastAPI, Body, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from typing import List, Optional, Dict, Any
-from app.rag import RAGEngine
 from app.documents.generator import generate_peticao_inicial_cobranca
 import os
 from retrieval_local import RetrieverLocal
@@ -29,8 +28,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"]
 )
-
-rag = RAGEngine()
 
 conversation_manager = ConversationManagerAPI()
 
