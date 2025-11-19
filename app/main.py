@@ -2,7 +2,7 @@ from fastapi import FastAPI, Body, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from typing import List, Optional, Dict, Any
-from app.documents.generator import generate_peticao_inicial_cobranca
+from app.documents.generator import generate_peticao_inicial_cobranca_ai, generate_peticao_inicial_cobranca
 import os
 from retrieval_local import RetrieverLocal
 from scripts.rerank_local import rerank
@@ -145,24 +145,40 @@ def reset_conversation(cid: str):
 
 class Parte(BaseModel):
     nome: str
-    cpf: Optional[str] = None
-    cnpj: Optional[str] = None
-    endereco: Optional[str] = None
-    estado_civil: Optional[str] = None
+    cpf: str | None = None
+    endereco: str | None = None
+    cnpj: str | None = None
 
-class PeticaoInicialCobranca(BaseModel):
+class PeticaoData(BaseModel):
+    foro: str
     autor: Parte
     reu: Parte
-    foro: str
-    fatos: str
-    pedidos: List[str]
     valor_causa: float
-    provas: Optional[List[str]] = Field(default_factory=list)
+    fatos: str | None = None
+    pedidos: list[str] | None = None
+    provas: list[str] | None = None
 
-@app.post("/documents/peticao-inicial-cobranca")
-def gerar_peticao_inicial_cobranca(payload: PeticaoInicialCobranca):
-    try:
-        path = generate_peticao_inicial_cobranca(payload.model_dump())
-        return {"ok": True, "path": path}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+class PeticaoRequest(BaseModel):
+    data: PeticaoData
+    consulta_caso: str
+    use_ai: bool = False
+    force: bool = False
+
+@app.post('/documents/peticao-inicial-cobranca')
+def gerar_peticao(req: PeticaoRequest):
+    if req.use_ai:
+        path = generate_peticao_inicial_cobranca_ai(
+            req.data.model_dump(),
+            consulta_caso=req.consulta_caso,
+            k=12,
+            force=req.force
+        )
+        ai_used = True
+    else:
+        path = generate_peticao_inicial_cobranca(req.data.model_dump())
+        ai_used = False
+    return {
+        "doc_path": path,
+        "ai_used": ai_used,
+        "data": req.data.model_dump()
+    }

@@ -15,7 +15,18 @@ QDRANT_HOST = os.getenv("QDRANT_HOST", "localhost")
 QDRANT_PORT = int(os.getenv("QDRANT_PORT", "6333"))
 QDRANT_COLLECTION = os.getenv("QDRANT_COLLECTION", "leis")
 
-TEMPLATES_DIR = Path(__file__).resolve().parents[1] / "templates"
+# Usa caminho absoluto baseado no próprio arquivo, garantindo acesso a
+# C:\projects\python\legal-assistant-mvp\app\documents\templates\
+TEMPLATES_DIR = Path(__file__).resolve().parent / "templates"
+
+if not TEMPLATES_DIR.is_dir():
+    # Aviso explícito para facilitar debug em tempo de execução
+    raise FileNotFoundError(
+        f"Diretório de templates não encontrado: {TEMPLATES_DIR}. "
+        "Crie a pasta 'templates' ao lado de generator.py e coloque 'peticao_inicial_cobranca.docx'."
+    )
+    
+
 OUTPUTS_DIR = Path(__file__).resolve().parents[2] / "outputs"
 OUTPUTS_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -47,7 +58,6 @@ def generate_peticao_inicial_cobranca(data: Dict) -> str:
     out_path = OUTPUTS_DIR / f"Peticao_Inicial_Cobranca_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.docx"
     doc.save(str(out_path))
     return str(out_path)
-
 
 # ---------------- IA Assistida -----------------
 
