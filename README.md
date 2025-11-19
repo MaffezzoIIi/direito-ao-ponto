@@ -142,6 +142,7 @@ Além de preencher manualmente os campos do JSON para o endpoint de documento, v
 ### Função Python
 
 A função `generate_peticao_inicial_cobranca_ai` em `app/documents/generator.py`:
+
 - Recupera artigos relevantes da coleção (embeddings locais)
 - Gera texto estruturado para fatos / pedidos / provas se estiverem vazios ou se `force=True`
 - Renderiza o template `.docx` final
