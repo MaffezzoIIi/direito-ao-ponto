@@ -1,9 +1,93 @@
-# Legal Assistant (Chat + Documentos)
+# Direito ao Ponto
 
-MVP de um assistente jurídico brasileiro com dois modos:
+O projeto buscar desenvolver um sistema de interpretração de linguagem natural e responder ao usuários com respostas objetivas e concretas sobre assuntos jurídicos, evitanto alucinações e sempre se baseando em uma arquitetura modular voltada tanto para um serviço on-premisse ou um serviço em nuvem.
 
-1. **Consulta** (RAG + citações)
-2. **Geração de Documentos** (form → template .docx)
+Para a sua utilização são necessários três repositórios atual, onde o presente repositório se resume em ser a ponte entre os outros dois serviços, o frontend para interface com usuário e o history que salva o registro das conversas para utilizar no contexto das conversas e devolver respostas que fação sentido no contexto atual da conversa.
+
+1. [Repositório resonpsável pelas conversas;](https://github.com/MaffezzoIIi/legal-assistant-history)
+2. [Repositório do frontend](https://github.com/MaffezzoIIi/direito-ao-ponto-frontend)
+
+## 🏛️ Tratamento dos dados jurídicos
+
+O tratamento dos dados jurídicos é realizado por meio de uma sequência de scripts que processam, indexam e permitem a busca eficiente sobre textos legais. O fluxo típico envolve:
+
+1. **Ingestão dos dados:** O script `ingest.py` lê arquivos brutos de leis (TXT ou HTML) e os transforma em arquivos JSONL estruturados, segmentando os textos em artigos ou trechos relevantes.
+
+2. **Indexação dos dados:** O script `index_qdrant_local.py` consome o arquivo JSONL gerado e realiza a indexação dos textos em um banco vetorial (Qdrant), utilizando embeddings para facilitar buscas semânticas.
+
+3. **Busca vetorial:** O script `search_qdrant_local.py` permite realizar buscas semânticas sobre os dados indexados, retornando os trechos mais relevantes para uma consulta jurídica.
+
+4. **Reranqueamento (opcional):** Para maior precisão, o script `rerank_local.py` pode ser utilizado para reranquear os resultados da busca, usando modelos de cross-encoder.
+
+> [Qdrant](https://qdrant.tech/)  
+> [Vector database](https://en.wikipedia.org/wiki/Vector_database)
+
+Diagrama de Sequência (Mermaid)
+
+```mermaid
+sequenceDiagram
+    participant Usuário
+    participant ingest.py
+    participant index_qdrant_local.py
+    participant Qdrant
+    participant search_qdrant_local.py
+    participant rerank_local.py
+
+    Usuário->>ingest.py: Fornece arquivo de lei (TXT/HTML)
+    ingest.py->>ingest.py: Processa e segmenta artigos
+    ingest.py->>Usuário: Gera arquivo JSONL estruturado
+
+    Usuário->>index_qdrant_local.py: Inicia indexação
+    index_qdrant_local.py->>Qdrant: Indexa artigos com embeddings
+
+    Usuário->>search_qdrant_local.py: Realiza consulta jurídica
+    search_qdrant_local.py->>Qdrant: Busca vetorial
+    Qdrant->>search_qdrant_local.py: Retorna trechos relevantes
+
+    search_qdrant_local.py->>rerank_local.py: (Opcional) Reranqueia resultados
+    rerank_local.py->>search_qdrant_local.py: Retorna resultados reranqueados
+
+    search_qdrant_local.py->>Usuário: Exibe resultados finais
+```
+
+## 🏄‍♂️ Utilização do RAG + Ollama (LLM)
+
+O sistema utiliza uma abordagem RAG (Retrieval-Augmented Generation) combinada com um modelo de linguagem local (Ollama) para gerar respostas jurídicas fundamentadas e contextualizadas. O fluxo consiste em:
+
+1. **Recepção da pergunta do usuário**
+2. **Recuperação de contexto**: Busca vetorial em Qdrant para encontrar trechos legais relevantes à consulta
+3. **Reranqueamento**: (opcional) Melhora a precisão dos resultados usando modelo cross-encoder
+4. **Construção do prompt**: Os trechos recuperados são formatados e inseridos em um prompt jurídico
+5. **Geração da resposta**: O prompt é enviado ao modelo LLM (Ollama), que gera uma resposta fundamentada
+6. **Retorno ao usuário**: A resposta é entregue junto com as citações legais utilizadas
+
+### Diagrama de Arquitetura (Mermaid)
+
+```mermaid
+flowchart TD
+  A[Usuário] -->|Pergunta| B[API /chat]
+  B --> C[Busca vetorial Qdrant]
+  C --> D["Rerank (opcional)"]
+  D --> E[Construção do Prompt]
+  E --> F["LLM (Ollama)"]
+  F --> G[Resposta fundamentada]
+  G -->|Exibe| A
+  C -.-> E
+  C -.-> G
+```
+
+### Exemplo de fluxo
+
+1. Usuário envia uma pergunta jurídica via endpoint `/chat`.
+2. O backend recupera trechos relevantes usando busca vetorial.
+3. (Opcional) Aplica rerank para priorizar os melhores trechos.
+4. Monta um prompt com o contexto legal e a pergunta do usuário.
+5. O Ollama gera uma resposta fundamentada, citando os artigos recuperados.
+6. O sistema retorna a resposta e as citações ao usuário.
+
+Esse fluxo garante que as respostas sejam sempre baseadas em fontes legais indexadas, reduzindo alucinações e aumentando a confiabilidade do sistema.
+
+> [RAG](https://en.wikipedia.org/wiki/Retrieval-augmented_generation)  
 
 ## 🚀 Modo de Conversa Multi-turn
 
@@ -38,25 +122,11 @@ Se `conversation_id` não for enviado, o backend cria um novo e retorna no paylo
 }
 ```
 
-### Endpoints auxiliares
-
-```bash
-GET /conversation/{conversation_id}
-POST /conversation/{conversation_id}/reset
-```
-
 ### Estratégia de Histórico
 
 O motor de busca considera as últimas `max_history` mensagens do usuário para criar uma consulta combinada. O histórico completo é mantido até 50 mensagens (limite configurado em memória).
 
 Para produzir uma conversa de verdade no frontend, basta reutilizar o `conversation_id` retornado e exibir o array `messages` em formato de chat.
-
-### Futuras Melhorias
-
-- Persistência em Redis ou banco (atualmente somente memória local)
-- Resumo automático (message windowing) para conversas longas
-- Streaming de tokens via Server-Sent Events ou WebSocket
-- Controles de custo/token
 
 ## Como rodar (dev)
 
@@ -67,33 +137,17 @@ pip install -r requirements.txt
 uvicorn app.main:app --reload --port 8000
 ```
 
-## Endpoints Principais
+### Documentação OpenAPI/Swagger
 
-```text
-POST /chat
-POST /documents/peticao-inicial-cobranca
-GET  /conversation/{conversation_id}
-POST /conversation/{conversation_id}/reset
-```
+O FastAPI gera automaticamente a documentação dos endpoints em formato OpenAPI. Para visualizar e testar os endpoints, basta acessar:
 
-## Estrutura
+- [http://localhost:8000/docs](http://localhost:8000/docs) — Interface interativa Swagger UI
+- [http://localhost:8000/openapi.json](http://localhost:8000/openapi.json) — Arquivo OpenAPI em JSON
 
-```text
-app/
-  main.py                # FastAPI + rotas
-  rag.py                 # stub de RAG
-  prompts/               # prompts base e processamento
-  documents/             # geração de documentos
-scripts/                 # ingestão e indexação
-data/                    # dados legais (raw/processed)
-```
+Esses caminhos funcionam por padrão ao rodar o backend com FastAPI/Uvicorn. Não é necessário configuração extra.
 
-## Observações
-
-- Este projeto é **esqueleto**: os métodos em `rag.py` estão com stubs para você ligar ao seu índice vetorial (Qdrant / pgvector / Pinecone). Agora o fluxo local usa SentenceTransformers + Qdrant.
-- Para geração de documentos personalize templates em `app/documents/templates/`.
-- Ajuste variáveis de ambiente (ex: `USE_OLLAMA=true`).
-- Avalie requisitos de LGPD para armazenamento de histórico.
+> [FastAPI](https://fastapi.tiangolo.com/)  
+> [Swagger](https://swagger.io/)
 
 ## 📦 Stack Local (Embeddings + Rerank)
 
@@ -188,5 +242,42 @@ print("Gerado:", doc_path)
 - Reranqueamento dos artigos antes da geração (usar `rerank_local.py`).
 - Geração de fundamentação jurídica e jurisprudência em seções separadas.
 - Verificação automática de citações legais (regex para "Art.").
+
+## Arquitetura: Frontend, Backend e Serviço de Histórico
+
+### O sistema é composto por três principais componentes
+
+1. **Frontend**
+Interface web utilizada pelo usuário para enviar perguntas jurídicas, visualizar respostas e acompanhar o histórico de conversas.
+
+2. **Backend (Legal Assistant)**
+API central que recebe as requisições do frontend, processa perguntas, realiza busca semântica, gera respostas fundamentadas e interage com o serviço de histórico para registrar e recuperar conversas.
+
+3. **Serviço de Histórico**
+Microserviço responsável por armazenar e recuperar o histórico das conversas dos usuários, permitindo persistência e contexto em múltiplos turnos.
+
+Fluxo de Interação
+O usuário interage com o frontend, enviando perguntas ou comandos.
+O frontend faz requisições HTTP para o backend (ex: `/chat`, `/conversation/{id}`).
+O backend processa a requisição, consulta o serviço de histórico para obter ou atualizar o contexto da conversa.
+O backend realiza busca semântica, gera resposta (usando RAG + LLM local) e retorna ao frontend.
+O frontend exibe a resposta e o histórico atualizado ao usuário.
+
+```mermaid
+sequenceDiagram
+    participant Usuário
+    participant Frontend
+    participant Backend
+    participant Histórico
+
+    Usuário->>Frontend: Envia pergunta ou comando
+    Frontend->>Backend: POST /chat (com conversation_id)
+    Backend->>Histórico: GET/POST conversa (recupera ou atualiza histórico)
+    Histórico-->>Backend: Retorna histórico da conversa
+    Backend->>Backend: Processa pergunta, busca contexto, gera resposta
+    Backend->>Histórico: POST mensagem (atualiza histórico)
+    Backend-->>Frontend: Retorna resposta e histórico
+    Frontend-->>Usuário: Exibe resposta e histórico
+```
 
 [Vídeo demonstrativo](https://youtu.be/FMrRUNGxe1Y)

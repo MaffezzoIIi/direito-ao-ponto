@@ -31,9 +31,6 @@ app.add_middleware(
 
 conversation_manager = ConversationManagerAPI()
 
-# TODO Futuras melhorias de conversa:
-# - Suporte a streaming (SSE / WebSocket) para respostas token a token
-
 @app.get("/conversations", response_model=List[Conversation])
 def get_conversations():
     print("Fetching all conversations...")
